@@ -1,0 +1,339 @@
+@startuml AltPrint v1
+
+package Altprint {
+
+    abstract class BasePrint {
+        ..Métodos..
+        {abstract} +slice()
+        {abstract} +make_layers()
+        {abstract} +export_gcode(filename)
+    }
+
+    class GcodeExporter {
+        ..Atributos..
+        - gcode_content : List<String>
+        - head_x : float
+        - head_y : float
+        - min_jump : float
+        - start_script_fname : str
+        - end_script_fname : str
+        - travel_speed_value : float
+        - travel_retraction_value : float
+
+        ..Métodos..
+        + __init__(travel_speed: float, travel_retraction: float, start_script: str = '', end_script: str = '')
+        + segment(x, y, z, e, v) : str
+        + jump(x, y, v, e) : str
+        + read_script(fname: str) : str
+        + make_gcode(printable: BasePrint) : void
+        + make_layer_gcode(layer) : List<String>
+        + export_gcode(filename: str) : void        
+    }
+
+    ' Relação de dependência com BasePrint 
+    GcodeExporter ..> BasePrint : associação simples (usa)
+    'GcodeExporter ..> LineString : usa 
+
+    abstract class HeightMethod {
+        ..Métodos..
+        {abstract} +get_heights(bounds) : List<float>
+    }
+
+    class StandartHeightMethod {
+        ..Atributos..
+        - layer_height : float
+
+        ..Métodos..
+        + __init__(layer_height: float = 0.2)
+        + get_heights(bounds) : List<float>
+    }
+
+    class CopyHeightsFromFileMethod {
+        ..Atributos..
+        - gcode_file_name : str
+
+        ..Métodos..
+        + __init__(gcode_file_name: str)
+        + get_heights(bounds=None) : List<float>
+    }
+
+    ' Relações de herança
+    HeightMethod <|-- StandartHeightMethod: (herança)
+    HeightMethod <|-- CopyHeightsFromFileMethod
+
+    class Raster {
+        ..Atributos..
+        - path: LineString
+        - speed: ndarray
+        - extrusion: ndarray
+        
+        ..Métodos..
+        + __init__(path: LineString, flow, speed)
+    }
+
+    class Layer {
+        ..Atributos..
+        - shape: MultiPolygon
+        - perimeter_num
+        - perimeter_gap
+        - external_adjust
+        - overlap
+        - perimeter_paths: List
+        - perimeter: List
+        - infill: List
+        - infill_border: MultiPolygon
+        
+        ..Métodos..
+        + __init__(shape: MultiPolygon, perimeter_num, perimeter_gap, external_adjust, overlap)
+        + make_perimeter(): void
+        + make_infill_border(): void
+    }
+    'relações de dependencia
+    'usa calculate() do arquivo flow.py, mas ele n tem classe (fazer uma?)
+    'Raster ..> LineString: usa
+    'Layer ..> MultiPolygon: usa
+    'Layer ..> LineString: usa
+    'Layer ..> Polygon: usa
+
+    abstract class InfillMethod {
+        ..Métodos..
+        {abstract} +generate_infill(layer: Layer) : MultiLineString
+    }
+    'relação de dependencia com Layer
+    InfillMethod ..> Layer: usa 
+    'InfillMethod ..> MultiLineString
+
+    class RectilinearInfill {
+        ..Métodos..
+        +generate_infill(layer: Layer, gap, angle) : MultiLineString
+    }
+
+    ' Herança
+    RectilinearInfill --|> InfillMethod
+
+    ' Dependências (usa como tipo nos métodos)
+    RectilinearInfill ..> Layer: usa
+    'RectilinearInfill ..> MultiLineString
+    InfillMethod ..> Layer: usa
+    'InfillMethod ..> MultiLineString
+
+    class SettingsParser {
+        ..Métodos..
+        +load_from_file(configfname: str) : dict
+    }
+
+    'SettingsParser ..> yaml
+
+    class SlicedPlanes {
+        ..Atributos..
+        -_height: float
+        -_planes_dict: dict[float, MultiPolygon]
+        -_coord: tuple[float, float, float]
+        -_bounds_coords: tuple[_coord, _coord]
+        +planes: dict[float, MultiPolygon]
+        +bounds: tuple[_coord, _coord]
+        
+        ..Métodos..
+        +__init__(planes: dict[float, MultiPolygon], bounds: tuple[_coord, _coord])
+        +get_heights() : List[float]
+    }
+
+    'SlicedPlanes ..> MultiPolygon
+
+    abstract class Slicer {
+        ..Métodos..
+        {abstract} +load_model(model_file: str) : void
+        {abstract} +translate_model(translation) : void
+        {abstract} +slice_model() : SlicedPlanes
+    }
+
+    'dependencia
+    Slicer ..> SlicedPlanes: usa
+
+    class STLSlicer {
+        ..Atributos..
+        -height_method: HeightMethod
+        -model: trimesh.Trimesh
+        
+        ..Métodos..
+        +__init__(height_method: HeightMethod)
+        +load_model(model_file: str) : void
+        +translate_model(translation) : void
+        +slice_model(heights=None) : SlicedPlanes
+    }
+
+    'herança
+    Slicer <|-- STLSlicer
+
+    'dependencia
+    STLSlicer o.. HeightMethod: (agregação) 
+
+    class StandartProcess {
+        ..Atributos..
+        +model_file: str
+        +slicer: STLSlicer
+        +infill_method: RectilinearInfill
+        +infill_angle: int 
+        +offset: tuple
+        +external_adjust: float
+        +perimeter_num: int
+        +perimeter_gap: float
+        +raster_gap: float
+        +overlap: float
+        +skirt_distance: float
+        +skirt_num: int
+        +skirt_gap: float
+        +travel_speed: float
+        +retraction: float
+        +first_layer_flow: float
+        +flow: float
+        +speed: float
+        +gcode_exporter: GcodeExporter
+        +start_script: str
+        +end_script: str
+        +best_path: bool
+        +orientation_gap: bool
+        +verbose: bool
+        
+        ..Métodos..    
+        +__init__(**kwargs)
+    }
+
+    'dependecias
+    StandartProcess o.. STLSlicer
+    StandartProcess o.. StandartHeightMethod
+    StandartProcess o.. RectilinearInfill
+    StandartProcess o.. GcodeExporter
+    StandartProcess ..> SettingsParser: usa
+
+    class StandartPrint {
+        ..Atributos..
+        -process: StandartProcess
+        -layers: dict[float, Layer]
+        -heights: list[float]
+
+        ..Métodos..
+        +__init__(process: StandartProcess)
+        +slice() : void
+        +make_layers() : void
+        +export_gcode(filename: str) : void
+    }
+
+    'Herança
+    BasePrint <|-- StandartPrint
+
+    'dependências
+    StandartPrint o.. Layer
+    StandartPrint o.. StandartProcess
+    StandartPrint ..> Raster: usa
+
+    class FlexProcess {
+        ..Atributos..
+        +model_file : str
+        +flex_model_file : str
+        +slicer : STLSlicer
+        +infill_method : RectilinearInfill
+        +infill_angle : int
+        +offset : (float,float,float)
+        +external_adjust : float
+        +perimeter_num : int
+        +perimeter_gap : float
+        +raster_gap : float
+        +overlap : float
+        +skirt_distance : float
+        +skirt_num : int
+        +skirt_gap : float
+        +travel_speed : float
+        +retraction : float
+        +first_layer_flow : float
+        +flow : float
+        +speed : float
+        +flex_flow : float
+        +flex_speed : float
+        +retract_flow : float
+        +retract_speed : float
+        +retract_ratio : float
+        +gcode_exporter : GcodeExporter
+        +start_script : str
+        +end_script : str
+        +vertical_gap_flex_infill : bool
+        +horizontal_gap_flex_infill : bool
+        +horizontal_num_gap : int
+        +horizontal_perc_gap : float
+        +orientation_gap : bool
+        +best_path : bool
+        +verbose : bool
+
+        ..Métodos..
+        +__init__(**kwargs)
+    }
+
+    'dependecias
+    FlexProcess o.. STLSlicer
+    FlexProcess o.. StandartHeightMethod
+    FlexProcess o.. RectilinearInfill
+    FlexProcess o.. GcodeExporter
+    FlexProcess ..> SettingsParser: usa
+
+    class FlexPrint {
+        ..Atributos..
+        -process : FlexProcess
+        -layers : dict[float, Layer]
+        -heights : list[float]
+
+        ..Métodos..
+        +__init__(process: FlexProcess)
+        +slice() : void
+        +make_layers() : void
+        +BestPath_Perimeter2Infill(layer: Layer, infill_method) : void
+        +export_gcode(filename) : void
+    }
+
+    'Herança
+    BasePrint <|-- FlexPrint
+
+    'dependências
+    FlexPrint o.. Layer
+    FlexPrint o.. FlexProcess
+    FlexPrint ..> Raster: usa
+
+    class MultiProcess {
+        ..Atributos..
+        +parts : List
+        +gcode_exporter : GcodeExporter
+        +start_script : str
+        +end_script : str
+        +offset : (float,float,float)
+        +travel_speed : int
+        +retraction : float
+        +verbose : bool
+
+        ..Métodos..
+        +__init__(**kwargs)
+    }
+
+    'dependências
+    MultiProcess o.. GcodeExporter
+
+    class MultiPrint {
+        ..Atributos..
+        -process : MultiProcess
+        -layers : dict[float, Layer]
+
+        ..Métodos..
+        +__init__(process: MultiProcess)
+        +slice() : void
+        +make_layers() : void
+        +export_gcode(filename) : void
+    }
+
+    'Herança
+    BasePrint <|-- MultiPrint
+
+    'dependências
+    MultiPrint o.. Layer
+    MultiPrint o.. MultiProcess
+
+}
+
+@enduml
