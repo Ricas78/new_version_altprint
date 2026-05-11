@@ -3,7 +3,7 @@ import tkinter as tk  # biblioteca padrão de GUI do Python
 from tkinter import ttk, messagebox, filedialog
 # renderização gráfica (GPU), área de desenho 3D
 from vispy.scene import visuals, SceneCanvas
-from vispy.scene.visuals import Box
+from vispy.scene.visuals import Box, Plane
 from vispy.visuals.transforms import STTransform, MatrixTransform
 from vispy.app import use_app  # integra VisPy com Tkinter
 import os  # manipulação de arquivos
@@ -12,9 +12,9 @@ import numpy as np  # arrays eficientes
 import matplotlib.cm as cm  # mapas de cores
 
 
-X_MAX_DEFAULT = 200
-Y_MAX_DEFAULT = 200
-Z_MAX_DEFAULT = 200
+X_MAX_DEFAULT = 220
+Y_MAX_DEFAULT = 220
+Z_MAX_DEFAULT = 220
 
 
 class GcodeWindow:
@@ -88,23 +88,35 @@ class GcodeWindow:
         # objeto que desenha as linhas do gcode
         self.vispy_linha_visual = visuals.Line(parent=self.vispy_view.scene)
 
-# Aplicando a bed
-        # bed = Box(
-        #     width=200,
-        #     height=200,
-        #     depth=1,
-        #     color=(0.2, 0.2, 0.2, 1),  # cinza escuro
-        #     parent=self.vispy_view.scene
-        # )
+# Aplicando a bed (Transformar isso em uma classe para usar tanto na aba gcode viewer como na aba stl viewer)
+        # criando a bed como um plano
+        bed = Plane(width=X_MAX_DEFAULT,
+                    height=Y_MAX_DEFAULT,
+                    direction='+z',
+                    color=(0.6, 0.6, 0.6, 1),  # cinza claro
+                    parent=self.vispy_view.scene)
 
-        # bed.transform = STTransform(
-        #     translate=(100, 100, -0.5)
-        # )
+        # centralizando a bed
+        bed.transform = MatrixTransform()
+        bed.transform.translate((X_MAX_DEFAULT/2, Y_MAX_DEFAULT/2, 0))
 
-        # trans = MatrixTransform()
-        # trans.rotate(90, (1, 0, 0))  # 90° em torno do eixo X
+        # criando as grades da bed
+        grid_points = []
+        step = 10
+        for x in range(10, X_MAX_DEFAULT + 1, step):
+            grid_points.append([x, 0, 0])
+            grid_points.append([x, Y_MAX_DEFAULT, 0])
 
-        # bed.transform = trans
+        for y in range(10, Y_MAX_DEFAULT + 1, step):
+            grid_points.append([0, y, 0])
+            grid_points.append([X_MAX_DEFAULT, y, 0])
+
+        # convertendo em np array para visualização
+        grid_points = np.array(grid_points, dtype=np.float32)
+        bed_grid = visuals.Line(pos=grid_points,
+                                color=(0.9, 0.9, 0.9, 1),
+                                connect='segments',
+                                parent=self.vispy_view.scene)
 
     def carregarGcodeVispy(self):
 
@@ -206,9 +218,11 @@ class GcodeWindow:
                         if novaPos[2] > zMax:
                             zMax = novaPos[2]
 
+            # Converte as listas de coordenadas e cores de segmentos em arrays np (mais eficiente pra trabalhar com vispy)
             self.gCodePosData = np.array(posicoes, dtype=np.float32)
             self.gCodeCorData = np.array(colors, dtype=np.float32)
 
+            # Envia os dados pro Vispy, relacionando cada par de coordenadas de movimento com o respectivo par de cor
             self.vispy_linha_visual.set_data(
                 pos=self.gCodePosData,
                 color=self.gCodeCorData,
@@ -216,31 +230,46 @@ class GcodeWindow:
             )
 
             # Ajuste de camera
+            # Pega a coordenada mínima que aparece em todos os eixos das coordenadas na lista de gcode
             x_min, y_min, z_min = np.min(self.gCodePosData, axis=0)
+            # Pega a coordenada máxima que aparece em todos os eixos das coordenadas na lista de gcode
             x_max, y_max, z_max = np.max(self.gCodePosData, axis=0)
 
+            # calcula ponto médio da peça
             centro_peca = [
                 (x_min + x_max) / 2,
                 (y_min + y_max) / 2,
                 (z_min + z_max) / 2
             ]
 
+            # Pega o valor da coordenada máxima entre os 3 eixos
             tamanho_peca = max(x_max - x_min, y_max - y_min, z_max - z_min)
 
+            # centraliza a camera
             self.vispy_view.camera.center = centro_peca
-            self.vispy_view.camera.distance = tamanho_peca * 2
+
+            # ajuste da distância da camera
+            self.vispy_view.camera.distance = tamanho_peca * 1
 
             # slider de camadas
+            # pega o numero N de linhas gcode
             totalVertices = len(self.gCodePosData)
+            # configura o slider pra ir de 0 a N
             self.layerSlider.config(to=totalVertices)
+            # incializa o slider no máximo da escala já
             self.layerSliderVar.set(totalVertices)
 
+            # muda o texto desta variavel
             self.layerSliderValor.config(text=f"100%")
 
+            # label do slider
             self.gcodeLabelStatusSv.set(
                 f"{os.path.basename(path)} | {len(posicoes)//2} movimentos | Altura: {zMax:.2f}mm")
+
+            # ativa slider
             self.layerSlider.config(state='normal')
 
+        # tratamento de erro
         except Exception as e:
             messagebox.showerror("Erro ao Ler G-Code",
                                  f"Não foi possível analisar o arquivo: {e}")
@@ -248,17 +277,22 @@ class GcodeWindow:
             self.layerSlider.config(state='disabled')
 
     def simularGcodeVispy(self, sliderValStr):
+
+        # verifica se gcodePosData existe
         if self.gCodePosData is None:
             return
 
         try:
+            # converte o valor do slider que vem inicialmente com String
             current_vertices = int(float(sliderValStr))
         except ValueError:
             current_vertices = 0
 
         try:
+            # pega o valor max config para o slider
             totalVertices = self.layerSlider.cget("to")
 
+            # porcentagem das linhas gcode lidas
             if totalVertices > 0:
                 percent = (current_vertices / totalVertices) * 100.0
             else:
@@ -270,16 +304,20 @@ class GcodeWindow:
             print(f"Erro ao atualizar label do slider: {e}")
             pass
 
+        # condições de visualização:
         num_vertices = current_vertices
-        if num_vertices % 2 != 0:
-            num_vertices -= 1
-
+        # se n tiver vértices, renderiza nada
         if num_vertices <= 0:
             self.vispy_linha_visual.visible = False
             return
 
-        self.vispy_linha_visual.visible = True
+        # se tiver um número impar de coordenadas, remova uma para haver segmentos completos (pares de coordenadas)
+        if num_vertices % 2 != 0:
+            num_vertices -= 1
 
+        # renderizando gcode atual
+        self.vispy_linha_visual.visible = True
+        # vai atualizando a visualização parcialmente conforme o valor de num_vertices
         self.vispy_linha_visual.set_data(
             pos=self.gCodePosData[:num_vertices],
             color=self.gCodeCorData[:num_vertices],
