@@ -47,7 +47,7 @@ class GcodeWindow:
             self.control_frame, textvariable=self.gcodeLabelStatusSv)
         self.labelStatus.pack(side='left', padx=10, expand=True, fill='x')
 
-        # tela-container para: label de n of layers, label de valor do slider e scala do slider
+        # tela-container para: label de n of layers, label de valor do slider e scala do slider (Horizontal)
         self.sim_frame = ttk.Frame(self.gcodewindow, padding="10")
         self.sim_frame.pack(side='top', fill='x')
 
@@ -63,6 +63,25 @@ class GcodeWindow:
         self.layerSlider = ttk.Scale(self.sim_frame, from_=0, to=100, orient='horizontal',
                                      state='disabled', variable=self.layerSliderVar, command=self.simularGcodeVispy)
         self.layerSlider.pack(side='left', fill='x', expand=True)
+
+        # tela-container para: label layers, label de valor do slider e scala do slider (vertical)
+        # self.vert_frame = ttk.Frame(self.gcodewindow, padding="10")
+        # self.vert_frame.pack(side='right', fill='y')
+
+        # # label de n of layers
+        # self.layersRefV = ttk.Label(self.vert_frame, text="layers: ")
+        # self.layersRefV.pack(side='bottom')
+
+        # # label de valor do slider
+        # self.layerSliderValorV = ttk.Label(self.vert_frame, width=6)
+        # self.layerSliderValorV.pack(side='top', padx=5)
+
+        # # scala do slider
+        # self.layerSliderV = ttk.Scale(self.vert_frame, from_=100, to=0, orient='vertical',
+        #                               state='disabled', variable=self.layerSliderVar, command=self.simularGcodeVispy)
+        # self.layerSliderV.pack(side='bottom', fill='y', expand=True)
+
+        ##
 
         # tela-container para: visualização do gcode
         self.plot_frame = ttk.Frame(self.gcodewindow)
@@ -161,6 +180,8 @@ class GcodeWindow:
         posAtual = [0.0, 0.0, 0.0]
         zMax = 0.0
         flagComeco = True
+        zAnterior = None
+        nLayers = 0
 
         try:
             # inicio da leitura do arquivo gcode
@@ -198,7 +219,7 @@ class GcodeWindow:
                         if zEncontrado:
                             novaPos[2] = float(zEncontrado.group(1))
 
-                        # verifica se a alguma coordenada de gcode fora dos limites da área de impressão
+                        # verifica se há alguma coordenada de gcode fora dos limites da área de impressão
                         if (novaPos[0] > abs(float(self.xMaxSv.get())) or novaPos[1] > abs(float(self.yMaxSv.get())) or novaPos[2] > abs(float(self.zMaxSv.get()))):
                             if not avisado:
                                 messagebox.showerror(
@@ -227,6 +248,15 @@ class GcodeWindow:
                                 colors.append(color)
                                 colors.append(color)
 
+                                # se o par de pontos for de extrusão e houver mudança na coordenada Z, atualiza o contador de camadas
+                                if zAnterior is None:
+                                    zAnterior = novaPos[2]
+                                    nLayers += 1
+
+                                elif novaPos[2] != zAnterior:
+                                    zAnterior = novaPos[2]
+                                    nLayers += 1
+
                             # se o par de pontos for de travel, adicona as cores desse segmento
                             else:
                                 travel_color = self.mapaDeCores(0.0)
@@ -240,6 +270,7 @@ class GcodeWindow:
                         if novaPos[2] > zMax:
                             zMax = novaPos[2]
 
+                print(nLayers)
             # Converte as listas de coordenadas e cores de segmentos em arrays np (mais eficiente pra trabalhar com vispy)
             self.gCodePosData = np.array(posicoes, dtype=np.float32)
             self.gCodeCorData = np.array(colors, dtype=np.float32)
@@ -277,11 +308,15 @@ class GcodeWindow:
             # pega o numero N de linhas gcode
             totalVertices = len(self.gCodePosData)
             # configura o slider pra ir de 0 a N
+
+            # self.layerSliderV.config(from_=nLayers, to=0)
             self.layerSlider.config(to=totalVertices)
+
             # incializa o slider no máximo da escala já
             self.layerSliderVar.set(totalVertices)
 
             # muda o texto desta variavel
+            # self.layerSliderValorV.config(text=f"100%")
             self.layerSliderValor.config(text=f"100%")
 
             # label do slider
@@ -289,6 +324,7 @@ class GcodeWindow:
                 f"{os.path.basename(path)} | {len(posicoes)//2} movimentos | Altura: {zMax:.2f}mm")
 
             # ativa slider
+            # self.layerSliderV.config(state='normal')
             self.layerSlider.config(state='normal')
 
         # tratamento de erro
@@ -296,6 +332,7 @@ class GcodeWindow:
             messagebox.showerror("Erro ao Ler G-Code",
                                  f"Não foi possível analisar o arquivo: {e}")
             self.gcodeLabelStatusSv.set("Erro ao carregar arquivo.")
+            # self.layerSliderV.config(state='disabled')
             self.layerSlider.config(state='disabled')
 
     def simularGcodeVispy(self, sliderValStr):
@@ -312,6 +349,7 @@ class GcodeWindow:
 
         try:
             # pega o valor max config para o slider
+            # totalVertices = self.layerSliderV.cget("from")
             totalVertices = self.layerSlider.cget("to")
 
             # porcentagem das linhas gcode lidas
@@ -320,6 +358,7 @@ class GcodeWindow:
             else:
                 percent = 0.0
 
+            # self.layerSliderValorV.config(text=f"{percent:.1f} %")
             self.layerSliderValor.config(text=f"{percent:.1f} %")
 
         except Exception as e:
