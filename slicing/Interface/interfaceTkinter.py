@@ -11,7 +11,8 @@ import sys
 # import numpy as np
 # import matplotlib.cm as cm
 import sv_ttk
-from gcodewindow import GcodeWindow
+# from gcodewindow import GcodeWindow
+from gcodewindowCopy import GcodeWindow
 
 if getattr(sys, 'frozen', False):
     APP_PATH = os.path.dirname(sys.executable)
