@@ -113,6 +113,8 @@ class GcodeWindow:
         # objeto que desenha as linhas do gcode
         self.vispy_linha_visual = visuals.Line(parent=self.vispy_view.scene)
 
+        self.vispy_linha_visual2 = visuals.Line(parent=self.vispy_view.scene)
+
 # Aplicando a bed (Transformar isso em uma classe para usar tanto na aba gcode viewer como na aba stl viewer)
         # criando a bed como um plano
         bed = Plane(width=X_MAX_DEFAULT,
@@ -399,14 +401,7 @@ class GcodeWindow:
 
         # 2. Se o slider estiver no zero, não há o que concatenar
         if self.currentLayer <= 0:
-            self.gCodeAcumulado = np.empty(
-                (0, 3), dtype=np.float32)  # Cria um array vazio 0x3
-            # Adicionado para limpar as cores também
-            self.gCodeAcumuladoCor = np.empty((0, 3), dtype=np.float32)
-
-            # Atualiza o VisPy com arrays vazios para sumir com o desenho da tela
-            self.vispy_linha_visual.set_data(
-                pos=self.gCodeAcumulado, color=self.gCodeAcumuladoCor)
+            self.vispy_linha_visual.visible = False
             return
 
         # 3. Pega todas as camadas do início até a camada atual de uma vez só
@@ -418,8 +413,7 @@ class GcodeWindow:
         self.gCodeAcumulado = np.concatenate(camadas_para_unir, axis=0)
         self.gCodeAcumuladoCor = np.concatenate(cor_camadas, axis=0)
 
-        # Agora self.gCodeAcumulado é um único array NumPyzão com formato (Total_De_Linhas, 3)
-
+        # inicializa a camada selecionada com o slider vertical em 100%
         self.simularGcodeVispy(str(len(self.gCodeLayers[self.currentLayer-1])))
         # renderizando gcode atual
         self.vispy_linha_visual.visible = True
@@ -430,11 +424,42 @@ class GcodeWindow:
             connect='segments'
         )
 
-    def simularGcodeVispy(self, sliderValStr):
+        if self.currentLayer > 1:
+            camadas_para_unir_Sup = self.gCodeLayers[:self.currentLayer-1]
+            cor_camadas_Sup = self.gCodeColorLayers[:self.currentLayer-1]
 
-        # # verifica se gcodePosData existe
-        # if self.gCodePosData is None:
-        #     return
+            gCodeAcumuladoSup = np.concatenate(camadas_para_unir_Sup, axis=0)
+            gCodeAcumuladoCor = np.concatenate(cor_camadas_Sup, axis=0)
+
+            # Agora self.gCodeAcumulado é um único array NumPyzão com formato (Total_De_Linhas, 3)
+
+            cor_escolhida = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+
+            # Pegamos o número total de linhas acumuladas
+            total_linhas = len(gCodeAcumuladoCor)
+
+            # Criamos a matriz de cores repetindo a 'cor_escolhida' para cada linha do G-code
+            self.gCodeAcumuladoCorSup = np.tile(
+                cor_escolhida, (total_linhas, 1))
+            # --------------------------------------------------
+
+            # Trava de segurança: se o array final por acaso estiver vazio, não renderiza
+            if total_linhas == 0:
+                self.vispy_linha_visual2.visible = False
+                return
+
+            self.vispy_linha_visual2.visible = False
+            self.vispy_linha_visual2.set_data(
+                pos=gCodeAcumuladoSup,
+                color=self.gCodeAcumuladoCorSup,
+                connect='strip'
+            )
+
+        else:
+            self.vispy_linha_visual2.visible = False
+            return
+
+    def simularGcodeVispy(self, sliderValStr):
 
         try:
             # converte o valor do slider que vem inicialmente com String
@@ -447,10 +472,10 @@ class GcodeWindow:
             self.vispy_linha_visual.visible = False
 
             percent = 0.0
-
-            # self.layerSliderValorV.config(text=f"{percent:.1f} %")
             self.layerSliderValor.config(text=f"{percent:.1f} %")
+
             return
+
         try:
 
             self.layerSlider.config(from_=0,
@@ -492,6 +517,11 @@ class GcodeWindow:
             return
 
         # renderizando gcode atual
+        # se a camada atual for > 1, a "sombra" das camadas anteriores renderiza
+        if self.currentLayer > 1:
+            self.vispy_linha_visual2.visible = True
+
+        # renderiza a camada atual
         self.vispy_linha_visual.visible = True
 
         self.vispy_linha_visual.set_data(
