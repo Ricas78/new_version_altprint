@@ -27,12 +27,17 @@ class GcodeWindow:
         self.xMaxSv = tk.StringVar(value=str(X_MAX_DEFAULT))
         self.yMaxSv = tk.StringVar(value=str(Y_MAX_DEFAULT))
         self.zMaxSv = tk.StringVar(value=str(Z_MAX_DEFAULT))
+        # verificar se é necessário isso aqui, talvez por numpy da pra modificar direto, eliminando a necessidade de mais um import
         self.mapaDeCores = cm.coolwarm
         self.layerSliderVar = tk.DoubleVar()
         self.layerSliderVarH = tk.DoubleVar()
         self.currentLayer = 1
         self.nLayers = None
+        self.gCodeLayers = []
+        self.gCodeColorLayers = []
+        self.gCodePosData = None
 
+############################################################################################
         # tela-container para: botao de abrir gcode, label do status gcode
         self.control_frame = ttk.Frame(self.gcodewindow, padding="10")
         self.control_frame.pack(side='top', fill='x')
@@ -49,8 +54,8 @@ class GcodeWindow:
         self.labelStatus = ttk.Label(
             self.control_frame, textvariable=self.gcodeLabelStatusSv)
         self.labelStatus.pack(side='left', padx=10, expand=True, fill='x')
-
-        # tela-container para: label layers, label de valor do slider e scala do slider (vertical)
+############################################################################################
+        # tela-container para: label layers, label de valor do slider e escala do slider (vertical)
         self.vert_frame = ttk.Frame(self.gcodewindow, padding="10")
         self.vert_frame.pack(side='right', fill='y')
 
@@ -66,7 +71,7 @@ class GcodeWindow:
         self.layerSliderV = ttk.Scale(self.vert_frame, from_=self.nLayers, to=1, orient='vertical',
                                       state='disabled', variable=self.layerSliderVar, command=self.simularLayerV)
         self.layerSliderV.pack(side='bottom', fill='y', expand=True)
-
+############################################################################################
         # tela-container para: label de n of layers, label de valor do slider e scala do slider (Horizontal)
         self.sim_frame = ttk.Frame(self.gcodewindow, padding="10")
         self.sim_frame.pack(side='top', fill='x')
@@ -83,9 +88,7 @@ class GcodeWindow:
         self.layerSlider = ttk.Scale(self.sim_frame, from_=0, to=100, orient='horizontal',
                                      state='disabled', variable=self.layerSliderVarH, command=self.simularGcodeVispy)
         self.layerSlider.pack(side='left', fill='x', expand=True)
-
-        ##
-
+############################################################################################
         # tela-container para: visualização do gcode
         self.plot_frame = ttk.Frame(self.gcodewindow)
         self.plot_frame.pack(side='bottom', fill='both',
@@ -184,7 +187,7 @@ class GcodeWindow:
         layersC = []
         posicoes = []
         posicoesAUX = []
-        colors = []
+        colors = []  # possivelmente essa var pode ser eliminada
         colorsAUX = []
         posAtual = [0.0, 0.0, 0.0]
         zMax = 0.0
@@ -256,7 +259,7 @@ class GcodeWindow:
                                     zAnterior = novaPos[2]
                                     nLayers += 1
 
-                                # se o par de pontos for de extrusão e houver mudança na coordenada Z, atualiza o contador de camadas
+                                # se o par de pontos for de extrusão e houver mudança na coordenada Z, add todos os movs/cores da camada anterior como elemento da lista de camdas, limpa as var AUX buffers e atualiza o contador de camadas
                                 elif novaPos[2] != zAnterior:
                                     layersM.append(posicoesAUX)
                                     layersC.append(colorsAUX)
@@ -266,6 +269,7 @@ class GcodeWindow:
                                     zAnterior = novaPos[2]
                                     nLayers += 1
 
+                                # enchendo os buffers dnv com os movs/cores da camada atual
                                 color = self.mapaDeCores(1.0)
                                 colors.append(color)
                                 colors.append(color)
@@ -293,40 +297,37 @@ class GcodeWindow:
                         if novaPos[2] > zMax:
                             zMax = novaPos[2]
 
+                # dps que sai do laço, preciso add o que tava no buffer por ultimo pq é referente a ultima camada que só termina quando sai do laço
                 layersM.append(posicoesAUX)
                 layersC.append(colorsAUX)
+
+                # passando a var local do metodo pra var global da classe (outros metodos desta classe podem acessá-la assim)
                 self.nLayers = nLayers
 
-                # print(nLayers)
-                # # print(posicoes)
-                # # print(layersM)
-                # for i in range(0, 2, 1):
-                #     print(layersM[i])
-                # print(layersC[i])
             # Converte as listas de coordenadas e cores de segmentos em arrays np (mais eficiente pra trabalhar com vispy)
             self.gCodePosData = np.array(posicoes, dtype=np.float32)
-            self.gCodeCorData = np.array(colors, dtype=np.float32)
+            # self.gCodeCorData = np.array(colors, dtype=np.float32)
 
-            self.gCodeLayers = []
-            self.gCodeColorLayers = []
-
-            # mesma coisa que o debaixo, só é mais eficiente
-            # for move, moveColor in zip(layersM[:nLayers], layersC[:nLayers]):
-            #     self.gCodeLayers.append(np.array(move, dtype=np.float32))
-            #     self.gCodeColorLayers.append(np.array(moveColor, dtype=np.float32))
+            # mesma coisa que o debaixo, só é mais eficiente: add a 3ª dimensão dos dados que seria a lista que armazena cada camada como elemento
+            for move, moveColor in zip(layersM[:nLayers], layersC[:nLayers]):
+                self.gCodeLayers.append(np.array(move, dtype=np.float32))
+                self.gCodeColorLayers.append(
+                    np.array(moveColor, dtype=np.float32))
 
             # bloco mais simples
-            for i in range(0, nLayers, 1):
-                self.gCodeLayers.append(np.array(layersM[i], dtype=np.float32))
-                self.gCodeColorLayers.append(
-                    np.array(layersC[i], dtype=np.float32))
+            # for i in range(0, nLayers, 1):
+            #     self.gCodeLayers.append(np.array(layersM[i], dtype=np.float32))
+            #     self.gCodeColorLayers.append(
+            #         np.array(layersC[i], dtype=np.float32))
 
-            # Envia os dados pro Vispy, relacionando cada par de coordenadas de movimento com o respectivo par de cor
-            self.vispy_linha_visual.set_data(
-                pos=self.gCodePosData,
-                color=self.gCodeCorData,
-                connect='segments'
-            )
+            # habilitando o slider Horizontal
+            self.layerSlider.config(state='normal')
+
+            # habilitando o slider Vertical
+            self.layerSliderV.config(from_=self.nLayers, to=1)
+            self.layerSliderVar.set(self.nLayers)
+            self.layerSliderV.config(state='normal')
+            self.simularLayerV(str(nLayers))
 
             # Ajuste de camera
             # Pega a coordenada mínima que aparece em todos os eixos das coordenadas na lista de gcode
@@ -349,113 +350,87 @@ class GcodeWindow:
 
             # ajuste da distância da camera
             self.vispy_view.camera.distance = tamanho_peca * 1
-################################
-            # slider de camadas
-            # pega o numero N de linhas gcode
-            # totalVertices = len(self.gCodePosData)
-
-            # # configura o slider pra ir de 0 a N
-            # # self.layerSliderV.config(from_=nLayers, to=0)
-            # self.layerSlider.config(to=totalVertices)
-
-            # # incializa o slider no máximo da escala já
-            # self.layerSliderVar.set(totalVertices)
-
-            # # muda o texto desta variavel
-            # # self.layerSliderValorV.config(text=f"100%")
-            # self.layerSliderValor.config(text=f"100%")
-
-            # # label do slider
-            # self.gcodeLabelStatusSv.set(
-            #     f"{os.path.basename(path)} | {len(posicoes)//2} movimentos | Altura: {zMax:.2f}mm")
-
-            # # ativa slider
-            # # self.layerSliderV.config(state='normal')
-            # self.layerSlider.config(state='normal')
-
-            self.layerSlider.config(state='normal')
-            self.simularGcodeVispy(
-                str(len(self.gCodeLayers[self.currentLayer-1])))
-
-            self.layerSliderV.config(from_=self.nLayers, to=1)
-            self.layerSliderVar.set(self.nLayers)
-            # self.layerSliderValorV.config(text=str(self.nLayers))
-
-            self.layerSliderV.config(state='normal')
-            self.simularLayerV(str(nLayers))
-################################
 
         # tratamento de erro
         except Exception as e:
             messagebox.showerror("Erro ao Ler G-Code",
                                  f"Não foi possível analisar o arquivo: {e}")
             self.gcodeLabelStatusSv.set("Erro ao carregar arquivo.")
-            # self.layerSliderV.config(state='disabled')
             self.layerSlider.config(state='disabled')
+            self.layerSliderV.config(state='disabled')
 
     def simularLayerV(self, sliderValStr):
 
+        # pega o valor setado no slider vertical e converte pra int
         self.currentLayer = int(float(sliderValStr))
 
-        self.layerSliderValorV.config(text=f"{self.currentLayer} layer")
+        # atualiza o numero que aparece na label do sliderV pro valor da camda setada atual
+        self.layerSliderValorV.config(text=f"{self.currentLayer}")
 
-        # 2. Se o slider estiver no zero, não há o que concatenar
+        # Se o slider estiver no zero, não há o que concatenar
         if self.currentLayer <= 0:
             self.vispy_linha_visual.visible = False
             return
 
-        # 3. Pega todas as camadas do início até a camada atual de uma vez só
-        # O fatiamento [:self.currentLayer] vai do índice 0 até o índice desejado
+        # Pega todas as camadas do início até a camada atual de uma vez só
+        # O fatiamento [:self.currentLayer] vai do índice 0 até o índice desejado -1
         camadas_para_unir = self.gCodeLayers[:self.currentLayer]
         cor_camadas = self.gCodeColorLayers[:self.currentLayer]
 
-        # 4. Concatena todas elas de uma só vez no eixo das linhas (axis=0)
-        self.gCodeAcumulado = np.concatenate(camadas_para_unir, axis=0)
-        self.gCodeAcumuladoCor = np.concatenate(cor_camadas, axis=0)
+        # Concatena todas elas de uma só vez no eixo das linhas (axis=0)
+        gCodeAcumulado = np.concatenate(camadas_para_unir, axis=0)
+        gCodeAcumuladoCor = np.concatenate(cor_camadas, axis=0)
 
         # inicializa a camada selecionada com o slider vertical em 100%
         self.simularGcodeVispy(str(len(self.gCodeLayers[self.currentLayer-1])))
-        # renderizando gcode atual
+
+        # renderizando gcode das camadas até a camda atual definida pelo o usuário no sliderV
         self.vispy_linha_visual.visible = True
 
+        # Envia os dados pro Vispy, relacionando cada par de coordenadas de movimento com o respectivo par de cor
         self.vispy_linha_visual.set_data(
-            pos=self.gCodeAcumulado,
-            color=self.gCodeAcumuladoCor,
+            pos=gCodeAcumulado,
+            color=gCodeAcumuladoCor,
             connect='segments'
         )
 
+        # Se a camada atual n for a primeira, ele habilita a construção da sombra das camadas anteriores
         if self.currentLayer > 1:
+
+            # pegas as camadas até a anterior a atual (pq é a sombra)
             camadas_para_unir_Sup = self.gCodeLayers[:self.currentLayer-1]
-            cor_camadas_Sup = self.gCodeColorLayers[:self.currentLayer-1]
+            # n fiz uma copia da lista de cores de comandos para cada camada pq como vou usar uma só cor pra sombra, posso usar a mesma lista de cima que me fornecerá o mesmo num de elementos
 
+            # concatena todos os movs das camdas em um unico vetor
             gCodeAcumuladoSup = np.concatenate(camadas_para_unir_Sup, axis=0)
-            gCodeAcumuladoCor = np.concatenate(cor_camadas_Sup, axis=0)
 
-            # Agora self.gCodeAcumulado é um único array NumPyzão com formato (Total_De_Linhas, 3)
+            # Agora self.gCodeAcumuladoSup é um único array NumPyzão com formato (todos os movs/linhas gcode de camdas até a camada atual-1, 3)
 
             cor_escolhida = np.array([0.0, 0.0, 0.0], dtype=np.float32)
 
-            # Pegamos o número total de linhas acumuladas
-            total_linhas = len(gCodeAcumuladoCor)
+            # Pegamos o número total de linhas acumuladas, como o numero de linhas de comando gcode tem o mesmo numero de linhas das suas respectivas cores de mov, uso a mesma lista (comandos/movs)
+            total_linhas = len(gCodeAcumuladoSup)
 
             # Criamos a matriz de cores repetindo a 'cor_escolhida' para cada linha do G-code
-            self.gCodeAcumuladoCorSup = np.tile(
+            gCodeAcumuladoCorSup = np.tile(
                 cor_escolhida, (total_linhas, 1))
-            # --------------------------------------------------
 
             # Trava de segurança: se o array final por acaso estiver vazio, não renderiza
             if total_linhas == 0:
                 self.vispy_linha_visual2.visible = False
                 return
 
+            # Desabilita a renderização mas deixa toda a estrutura de visualização construida em segundo plano
             self.vispy_linha_visual2.visible = False
             self.vispy_linha_visual2.set_data(
                 pos=gCodeAcumuladoSup,
-                color=self.gCodeAcumuladoCorSup,
+                color=gCodeAcumuladoCorSup,
+                # utilizando strip ao inves de segment pq n preciso que a sombra passe pedaço por pedaço das trajetorias e sim que pode gerar de uma vez direto
                 connect='strip'
             )
 
         else:
+            # Deixa desabilitada a renderização estrutura visual da sombra
             self.vispy_linha_visual2.visible = False
             return
 
@@ -465,10 +440,12 @@ class GcodeWindow:
             # converte o valor do slider que vem inicialmente com String
             current_vertices = int(float(sliderValStr))
         except ValueError:
-            current_vertices = 0
+            print(
+                "Tipo de dado incompativel com 'current_vertices', escreva um valor númerico")
 
+        # se n tiver vértices, renderiza nada e retorna
         if current_vertices <= 0:
-            # <--- Solução: Esconde em vez de mandar array vazio
+            # Esconde em vez de mandar array vazio
             self.vispy_linha_visual.visible = False
 
             percent = 0.0
@@ -476,43 +453,32 @@ class GcodeWindow:
 
             return
 
-        try:
+        # Define o total de movs/linhas gcode a serem lidas para a camada atual
+        self.layerSlider.config(from_=0,
+                                to=len(self.gCodeLayers[self.currentLayer-1]))
+        totalVertices = self.layerSlider.cget("to")
 
-            self.layerSlider.config(from_=0,
-                                    to=len(self.gCodeLayers[self.currentLayer-1]))
-            totalVertices = self.layerSlider.cget("to")
+        # Inicializa/atualiza o sliderH na linha de comando gcode/mov na parte da escala do sliderH em que o usuario selecionou
+        self.layerSliderVarH.set(current_vertices)
 
-            self.layerSliderVarH.set(current_vertices)
+        # porcentagem das linhas gcode lidas/ parametrização da visualização da escala em formato de %
+        if totalVertices > 0:
+            percent = (current_vertices / totalVertices) * 100.0
+        else:
+            percent = 0.0
 
-            # porcentagem das linhas gcode lidas
-            if totalVertices > 0:
-                percent = (current_vertices / totalVertices) * 100.0
-            else:
-                percent = 0.0
-
-            # self.layerSliderValorV.config(text=f"{percent:.1f} %")
-            self.layerSliderValor.config(text=f"{percent:.1f} %")
-
-        except Exception as e:
-            print(f"Erro ao atualizar label do slider: {e}")
-            pass
-
-        # condições de visualização:
-        num_vertices = current_vertices
-        # se n tiver vértices, renderiza nada
-        if num_vertices <= 0:
-            self.vispy_linha_visual.visible = False
-            return
+        self.layerSliderValor.config(text=f"{percent:.1f} %")
 
         # se tiver um número impar de coordenadas, remova uma para haver segmentos completos (pares de coordenadas)
-        if num_vertices % 2 != 0:
-            num_vertices -= 1
+        if current_vertices % 2 != 0:
+            current_vertices -= 1
 
+        # vars locais para pegar só as linhas gcodes da camada atual definida no sliderV
         gCodeCurrent = self.gCodeLayers[self.currentLayer-1]
         gCodeColorCurrent = self.gCodeColorLayers[self.currentLayer-1]
 
         # SE POR ALGUM MOTIVO O ARRAY DA CAMADA VIER VAZIO DE FATO, EVITA O CRASH
-        if len(gCodeCurrent[:num_vertices]) == 0:
+        if len(gCodeCurrent[:current_vertices]) == 0:
             self.vispy_linha_visual.visible = False
             return
 
@@ -521,11 +487,11 @@ class GcodeWindow:
         if self.currentLayer > 1:
             self.vispy_linha_visual2.visible = True
 
-        # renderiza a camada atual
+        # renderiza a camada atual até as linhas de gcode/movs selecionadas pelo usuario no sliderH
         self.vispy_linha_visual.visible = True
 
         self.vispy_linha_visual.set_data(
-            pos=gCodeCurrent[:num_vertices],
-            color=gCodeColorCurrent[:num_vertices],
+            pos=gCodeCurrent[:current_vertices],
+            color=gCodeColorCurrent[:current_vertices],
             connect='segments'
         )
