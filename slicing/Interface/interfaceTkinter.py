@@ -13,6 +13,8 @@ import sys
 import sv_ttk
 # from gcodewindow import GcodeWindow
 from gcodewindowCopy import GcodeWindow
+# from parameterswindow import ParametersWindow
+from parameterswindowCopy import ParametersWindow
 
 if getattr(sys, 'frozen', False):
     APP_PATH = os.path.dirname(sys.executable)
@@ -56,12 +58,12 @@ class MainWindow:
                            side='top', pady=5, padx=10)
 
         # Making sub-windows
-        # self.w1 = ParametersWindow(self.notebook)
+        self.w1 = ParametersWindow(self.notebook, self.window)
         # self.w2 = StlWindow(self.notebook)
         self.w3 = GcodeWindow(self.notebook, self.window)
 
         # Adicionar abas ao notebook
-        # self.notebook.add(self.w1, text="Parameters set")
+        self.notebook.add(self.w1.parameterwindow, text="Parameters set")
         # self.notebook.add(self.w2, text="STL viewer")
         self.notebook.add(self.w3.gcodewindow, text="Gcode viewer")
 
