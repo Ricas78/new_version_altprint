@@ -89,7 +89,7 @@ class Label_Container:
         for i in range(n_parameter):
 
             self.inserir_parametro(
-                i, frame_ref_inser, f"{text_label} {i+1}", width_entry, text_entry, flag_button, text_button, command_function)
+                i, frame_ref_inser, f"{text_label} {i+1}:", width_entry, text_entry, flag_button, text_button, command_function)
 
             # lista auxiliar para armazenar os entry do frame/container dinamico
             aux_entry.append(self.entry[frame_ref_inser])

@@ -2,15 +2,12 @@ import tkinter as tk  # biblioteca padrão de GUI do Python
 # widgets mais modernos (botões, frames, etc.)
 from tkinter import ttk, messagebox, filedialog
 # renderização gráfica (GPU), área de desenho 3D
-from vispy.scene import visuals, SceneCanvas
-from vispy.scene.visuals import Plane
-from vispy.scene.cameras import TurntableCamera
-from vispy.visuals.transforms import MatrixTransform
-from vispy.app import use_app  # integra VisPy com Tkinter
+from vispy.scene import visuals
 import os  # manipulação de arquivos
 import re  # regex (parse do G-code)
 import numpy as np  # arrays eficientes
 import matplotlib.cm as cm  # mapas de cores
+from Auxiliar_classes.sub_window import SubWindow
 
 
 X_MAX_DEFAULT = 220
@@ -18,10 +15,9 @@ Y_MAX_DEFAULT = 220
 Z_MAX_DEFAULT = 220
 
 
-class GcodeWindow:
-    def __init__(self, mWindow: ttk.Notebook, window: tk.Tk):
-        self.gcodewindow = ttk.Frame(mWindow)
-        self.mainwindow = window
+class GcodeWindow(SubWindow):
+    def __init__(self, notebook: ttk.Notebook, mainwindow: tk.Tk):
+        super().__init__(notebook, mainwindow)
 
         # atributos pros metodos
         self.xMaxSv = tk.StringVar(value=str(X_MAX_DEFAULT))
@@ -39,7 +35,7 @@ class GcodeWindow:
 
 ############################################################################################
         # tela-container para: botao de abrir gcode, label do status gcode
-        self.control_frame = ttk.Frame(self.gcodewindow, padding="10")
+        self.control_frame = ttk.Frame(self.subwindow, padding="10")
         self.control_frame.pack(side='top', fill='x')
 
         # botão abrir gcode
@@ -56,7 +52,7 @@ class GcodeWindow:
         self.labelStatus.pack(side='left', padx=10, expand=True, fill='x')
 ############################################################################################
         # tela-container para: label layers, label de valor do slider e escala do slider (vertical)
-        self.vert_frame = ttk.Frame(self.gcodewindow, padding="10")
+        self.vert_frame = ttk.Frame(self.subwindow, padding="10")
         self.vert_frame.pack(side='right', fill='y')
 
         # label de n of layers
@@ -73,7 +69,7 @@ class GcodeWindow:
         self.layerSliderV.pack(side='bottom', fill='y', expand=True)
 ############################################################################################
         # tela-container para: label de n of layers, label de valor do slider e scala do slider (Horizontal)
-        self.sim_frame = ttk.Frame(self.gcodewindow, padding="10")
+        self.sim_frame = ttk.Frame(self.subwindow, padding="10")
         self.sim_frame.pack(side='top', fill='x')
 
         # label de n of layers
@@ -89,83 +85,15 @@ class GcodeWindow:
                                      state='disabled', variable=self.layerSliderVarH, command=self.simularGcodeVispy)
         self.layerSlider.pack(side='left', fill='x', expand=True)
 ############################################################################################
-        # tela-container para: visualização do gcode
-        self.plot_frame = ttk.Frame(self.gcodewindow)
-        self.plot_frame.pack(side='bottom', fill='both',
-                             expand=True, padx=5, pady=5)
 
-        # integra VisPy com Tkinter
-        use_app('tkinter')
+        # Gerando a visualização da BED/build volume
+        self.generate_build_volume(
+            "bottom", X_MAX_DEFAULT, Y_MAX_DEFAULT, Z_MAX_DEFAULT)
 
-        # visualização da animação do gcode (cria canvas 3D)
-        self.vispyCanvas = SceneCanvas(
-            keys='interactive', bgcolor='white', parent=self.plot_frame)
-        self.vispyCanvas.native.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-
-        # controle de camera da visualização
-        self.vispy_view = self.vispyCanvas.central_widget.add_view()
-
-        self.vispy_view.camera = TurntableCamera(
-            fov=45,
-            distance=600,
-            center=(X_MAX_DEFAULT/2, Y_MAX_DEFAULT/2, Z_MAX_DEFAULT/2),
-            up='+z',
-            translate_speed=25
-        )
-
-        # objeto que desenha as linhas do gcode
+        # objetos que desenham as linhas do gcode
         self.vispy_linha_visual = visuals.Line(parent=self.vispy_view.scene)
 
         self.vispy_linha_visual2 = visuals.Line(parent=self.vispy_view.scene)
-
-# Aplicando a bed (Transformar isso em uma classe para usar tanto na aba gcode viewer como na aba stl viewer)
-        # criando a bed como um plano
-        bed = Plane(width=X_MAX_DEFAULT,
-                    height=Y_MAX_DEFAULT,
-                    direction='+z',
-                    color=(0.6, 0.6, 0.6, 1),  # cinza claro
-                    parent=self.vispy_view.scene)
-
-        # centralizando a bed
-        bed.transform = MatrixTransform()
-        bed.transform.translate((X_MAX_DEFAULT/2, Y_MAX_DEFAULT/2, 0))
-
-        # criando as grades da bed
-        grid_points = []
-        step = 10
-
-        # grade base da mesa
-        for x in range(0, X_MAX_DEFAULT + 1, step):
-            grid_points.append([x, 0, 0])
-            grid_points.append([x, Y_MAX_DEFAULT, 0])
-
-        for y in range(0, Y_MAX_DEFAULT + 1, step):
-            grid_points.append([0, y, 0])
-            grid_points.append([X_MAX_DEFAULT, y, 0])
-
-        # grade altura da mesa
-        for x in range(0, X_MAX_DEFAULT + 1, X_MAX_DEFAULT):
-            grid_points.append([x, 0, Z_MAX_DEFAULT])
-            grid_points.append([x, Y_MAX_DEFAULT, Z_MAX_DEFAULT])
-            grid_points.append([x, 0, 0])
-            grid_points.append([x, 0, Z_MAX_DEFAULT])
-            grid_points.append([x, Y_MAX_DEFAULT, 0])
-            grid_points.append([x, Y_MAX_DEFAULT, Z_MAX_DEFAULT])
-
-        for y in range(0, Y_MAX_DEFAULT + 1, Y_MAX_DEFAULT):
-            grid_points.append([0, y, Z_MAX_DEFAULT])
-            grid_points.append([X_MAX_DEFAULT, y, Z_MAX_DEFAULT])
-            grid_points.append([0, y, 0])
-            grid_points.append([0, y, Z_MAX_DEFAULT])
-            grid_points.append([X_MAX_DEFAULT, y, 0])
-            grid_points.append([X_MAX_DEFAULT, y, Z_MAX_DEFAULT])
-
-        # convertendo em np array para visualização
-        grid_points = np.array(grid_points, dtype=np.float32)
-        bed_grid = visuals.Line(pos=grid_points,
-                                color=(0.7, 0.7, 0.7, 1),
-                                connect='segments',
-                                parent=self.vispy_view.scene)
 
     def carregarGcodeVispy(self):
 

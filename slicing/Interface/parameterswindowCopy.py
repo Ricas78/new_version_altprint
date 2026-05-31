@@ -1,35 +1,39 @@
 import tkinter as tk  # biblioteca padrão de GUI do Python
 # widgets mais modernos (botões, frames, etc.)
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk
 from Auxiliar_classes.label_container import Label_Container
+from Auxiliar_classes.sub_window import SubWindow
+
+X_MAX_DEFAULT = 220
+Y_MAX_DEFAULT = 220
+Z_MAX_DEFAULT = 220
 
 
-class ParametersWindow:
-    def __init__(self, mWindow: ttk.Notebook, window: tk.Tk):
-        self.parameterwindow = ttk.Frame(mWindow)
-        self.mainwindow = window
+class ParametersWindow(SubWindow):
+    def __init__(self, notebook: ttk.Notebook, mainwindow: tk.Tk):
+        super().__init__(notebook, mainwindow)
 
         self.labelContainers = []
         # criando Canvas (container dinamico com scroll) que conterá o container dos parametros
         self.canvas_scroll = tk.Canvas(
-            self.parameterwindow, highlightthickness=0)
+            self.subwindow, highlightthickness=0, width=565)
 
         # criando a scrollbar
         self.scrollbar = ttk.Scrollbar(
-            self.parameterwindow, orient="vertical", command=self.canvas_scroll.yview)
+            self.subwindow, orient="vertical", command=self.canvas_scroll.yview)
 
         # Vincula o Canvas à Barra de Rolagem
         self.canvas_scroll.configure(yscrollcommand=self.scrollbar.set)
 
         # Primeiro posicionamos a scrollbar na extrema esquerda
-        self.scrollbar.pack(side='left', fill='y', padx=5, pady=5)
+        self.scrollbar.pack(side='left', fill='y', padx=10, pady=5)
         # Depois o canvas ocupa o lado esquerdo (direita da scrollbar) e expande dinamicamente conforme os frames contidos nele crescem
-        self.canvas_scroll.pack(side='left', fill='both', expand=True)
+        self.canvas_scroll.pack(side='left', fill='y')
 
         # criando container que ditará o tamanho do scroll dinamicamente para abrigar todas as labels dos parametros
         self.container_parameters = ttk.Frame(self.canvas_scroll)
 
-        # Inserimos o Frame dentro do Canvas como uma janela interna na origem (0,0) a north-west (canto superior esquerdo e nao no meio)
+        # Inserimos o Frame dentro do Canvas como uma janela interna na origem (0,0) a northwest (canto superior esquerdo e nao no meio)
         self.canvas_window = self.canvas_scroll.create_window(
             (0, 0), window=self.container_parameters, anchor="nw"
         )
@@ -54,8 +58,8 @@ class ParametersWindow:
             0, 0, "STL model file:", 40, "selecione o arquivo STL", True, "search", self.select_file)
         self.labelContainers[0].inserir_parametro(0, 1, "number of flex regions:", 3, "5", True, "confirm", lambda: [self.labelContainers[0].inserir_parametros_dinamicos(
             self.labelContainers[0].entry, 1, 2, "STL flex region model file ", 40, "selecione o arquivo STL", True, "search", self.select_file), self.labelContainers[4].inserir_parametros_dinamicos(
-            self.labelContainers[0].entry, 1, 3, "Horizontal number gap:", 5, "1", False, None, None), self.labelContainers[4].inserir_parametros_dinamicos(
-            self.labelContainers[0].entry, 1, 4, "Horizontal perc gap (%):", 5, "20", False, None, None)])
+            self.labelContainers[0].entry, 1, 3, "Horizontal number gap ", 5, "1", False, None, None), self.labelContainers[4].inserir_parametros_dinamicos(
+            self.labelContainers[0].entry, 1, 4, "Horizontal perc gap (%) ", 5, "20", False, None, None)])
 
         ### Printer setup LabelFrame ###
         self.printer_setup = ttk.Labelframe(
@@ -76,11 +80,12 @@ class ParametersWindow:
             0, 4, "Z max Build volume (mm):", 5, "220", False, None, None)
 
         ### Common printing parameters LabelFrame ###
-        self.printer_setup = ttk.Labelframe(
+        self.common_print_parameters = ttk.Labelframe(
             self.container_parameters, text=" Common Printing Parameters ")
-        self.printer_setup.pack(fill="x", padx=10, pady=10)
+        self.common_print_parameters.pack(fill="x", padx=10, pady=10)
 
-        self.labelContainers.append(Label_Container(self.printer_setup, 18))
+        self.labelContainers.append(
+            Label_Container(self.common_print_parameters, 18))
 
         self.labelContainers[2].inserir_parametro(
             0, 0, "Infill angle (°):", 5, "180", False, None, None)
@@ -120,11 +125,12 @@ class ParametersWindow:
             0, 17, "Best path:", 5, "True", False, None, None)
 
         ### Non-flexible region parameters LabelFrame ###
-        self.printer_setup = ttk.Labelframe(
+        self.non_flex_region_parameters = ttk.Labelframe(
             self.container_parameters, text=" Non-flexible Region Parameters ")
-        self.printer_setup.pack(fill="x", padx=10, pady=10)
+        self.non_flex_region_parameters.pack(fill="x", padx=10, pady=10)
 
-        self.labelContainers.append(Label_Container(self.printer_setup, 3))
+        self.labelContainers.append(Label_Container(
+            self.non_flex_region_parameters, 3))
 
         self.labelContainers[3].inserir_parametro(
             0, 0, "First layer flow (g/min):", 5, "0.9", False, None, None)
@@ -134,11 +140,12 @@ class ParametersWindow:
             0, 2, "Speed (mm/min):", 5, "3600", False, None, None)
 
         ### Flexible region parameters LabelFrame ###
-        self.printer_setup = ttk.Labelframe(
+        self.flex_region_parameters = ttk.Labelframe(
             self.container_parameters, text=" Flexible Region Parameters ")
-        self.printer_setup.pack(fill="x", padx=10, pady=10)
+        self.flex_region_parameters.pack(fill="x", padx=10, pady=10)
 
-        self.labelContainers.append(Label_Container(self.printer_setup, 6))
+        self.labelContainers.append(
+            Label_Container(self.flex_region_parameters, 6))
 
         self.labelContainers[4].inserir_parametro(
             0, 0, "Flow (g/min):", 5, "0.6", False, None, None)
@@ -149,6 +156,12 @@ class ParametersWindow:
         # os parametro 3 e 4 desta label foram inseridos na fç lambda do numero de flex regions definido na Labelframe Stl files
         self.labelContainers[4].inserir_parametro(
             0, 5, "Orientation gap:", 5, "True", False, None, None)
+
+############# -Fim das Labelframes- ###########################################
+
+        # Gerando a visualização da BED/build volume
+        self.generate_build_volume(
+            "left", X_MAX_DEFAULT, Y_MAX_DEFAULT, Z_MAX_DEFAULT)
 
     def select_file(self):
         return

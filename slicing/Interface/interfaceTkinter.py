@@ -1,20 +1,13 @@
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox, filedialog
-# from vispy.scene import visuals, SceneCanvas
-# from vispy.app import use_app
+from tkinter import ttk
 import os
 import sys
-# import matplotlib.pyplot as plt
-# from matplotlib.animation import FuncAnimation
-# from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-# import re
-# import numpy as np
-# import matplotlib.cm as cm
 import sv_ttk
 # from gcodewindow import GcodeWindow
 from gcodewindowCopy import GcodeWindow
 # from parameterswindow import ParametersWindow
 from parameterswindowCopy import ParametersWindow
+from Auxiliar_classes.sub_window import SubWindow
 
 if getattr(sys, 'frozen', False):
     APP_PATH = os.path.dirname(sys.executable)
@@ -22,16 +15,6 @@ if getattr(sys, 'frozen', False):
 else:
     APP_PATH = os.path.abspath(".")
     ASSET_PATH = APP_PATH
-
-
-# class ParametersWindow(ttk.Frame):
-#     def __init__(self, mWindow):
-#         super().__init__(mWindow)
-
-
-# class StlWindow(ttk.Frame):
-#     def __init__(self, mWindow):
-#         super().__init__(mWindow)
 
 
 class MainWindow:
@@ -63,19 +46,20 @@ class MainWindow:
         self.w3 = GcodeWindow(self.notebook, self.window)
 
         # Adicionar abas ao notebook
-        self.notebook.add(self.w1.parameterwindow, text="Parameters set")
+        self.notebook.add(self.w1.subwindow, text="Parameters set")
         # self.notebook.add(self.w2, text="STL viewer")
-        self.notebook.add(self.w3.gcodewindow, text="Gcode viewer")
+        self.notebook.add(self.w3.subwindow, text="Gcode viewer")
 
         # botão com recurso de troca de modo claro-escuro
         self.iconeTema = tk.PhotoImage(
             file=os.path.join(ASSET_PATH, "D:\Github\_new_version_altprint\slicing\Interface\mudarTema.png"))
 
         self.botaoTema = ttk.Button(
-            self.conTela, image=self.iconeTema, command=lambda: self.mudarTema(self.w3))
+            self.conTela, image=self.iconeTema, command=lambda: [self.mudarTema_Window_Comum(), self.mudarTema_Window(self.w1), self.mudarTema_Window(self.w3)])
         self.botaoTema.grid(row=0, column=6, padx=5, pady=5)
+        # Tip: sempre que for usar a função lambda como um lista de chamada de funções, se agluma função n tiver parametro de entrada, coloque os parenteses vazios para ele ler e exercutar a função
 
-    def mudarTema(self, gcodewindow: GcodeWindow):
+    def mudarTema_Window_Comum(self):
         if self.tema == "dark":
             self.tema = "light"
 
@@ -85,15 +69,16 @@ class MainWindow:
         # aplicar tema
         sv_ttk.set_theme(self.tema)
 
+    def mudarTema_Window(self, subwindow: SubWindow):
         # aplicar tema na animação do gcode
-        if gcodewindow.vispyCanvas is None:
+        if subwindow.vispyCanvas is None:
             return
         if (self.tema == "dark"):
             bg_color = "#2B2B2B"
         else:
             bg_color = "#F0F0F0"
 
-        gcodewindow.vispyCanvas.bgcolor = bg_color
+        subwindow.vispyCanvas.bgcolor = bg_color
 
 
 if __name__ == "__main__":
