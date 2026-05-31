@@ -18,7 +18,9 @@ class SubWindow:
         self.vispy_view = None
 
     def generate_build_volume(self, side_frame: str, X_MAX_DEFAULT, Y_MAX_DEFAULT, Z_MAX_DEFAULT):
-
+        """metodo p/ construir a visualização do build_volume/stl/gcode
+        "side_frame" -> posição em que o frame que vai armazenar o buildvolume vai ficar na subwindow\n
+        "X", "Y" e "Z" maximos do build volume """
         # tela-container para: visualização do build_volume/stl/gcode
         plot_frame = ttk.Frame(self.subwindow)
         plot_frame.pack(side=side_frame, fill='both',
