@@ -53,8 +53,13 @@ class Label_Container:
             ttk.Button(self.frames[frame_ref], text=text_button, command=command_function).grid(
                 row=line, column=2, padx=5, pady=5, sticky="w")
 
-    def inserir_parametros_dinamicos(self, frame_ref_entry: int, frame_ref_inser: int, text_label: str, width_entry: int, text_entry: str, flag_button: bool, text_button: str, command_function):
+        # else:
+        #     ttk.Label(self.frames[frame_ref], text=text_label_units).grid(
+        #     row=line, column=2, padx=5, pady=5, sticky="w")
+
+    def inserir_parametros_dinamicos(self, dict_frame_ref_entry: dict, frame_ref_entry: int, frame_ref_inser: int, text_label: str, width_entry: int, text_entry: str, flag_button: bool, text_button: str, command_function):
         """ Criação e inserção dinamica (no frame desejado) de Labels, Entrys e Buttons
+        "dict_frame_ref_entry" -> dicionario desejado
         "frame_ref_entry" -> indice do Entry desejado no dicionário de armazenamento dos campos do usuário\n
         "frame_ref_inser" -> indice do frame desejado na lista de frames armazenados 
         "text_label" -> texto da Label,\n
@@ -72,7 +77,7 @@ class Label_Container:
         aux_entry = []
 
         # Acessa o valor digitado no entry desejado contido no dicionario
-        n_parameter = int(self.entry[frame_ref_entry].get())
+        n_parameter = int(dict_frame_ref_entry[frame_ref_entry].get())
 
         # reconstrução da subtela/container dianamico base que contém a tela-matriz para inserção dos Labels, Entrys e Buttons dinamicos
         self.frames[frame_ref_inser] = ttk.Frame(self.labelframe)

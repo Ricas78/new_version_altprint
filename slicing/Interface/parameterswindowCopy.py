@@ -52,8 +52,10 @@ class ParametersWindow:
         # Inserindo os parâmetros de forma empilhada
         self.labelContainers[0].inserir_parametro(
             0, 0, "STL model file:", 40, "selecione o arquivo STL", True, "search", self.select_file)
-        self.labelContainers[0].inserir_parametro(0, 1, "number of flex regions:", 3, "1", True, "confirm", lambda: self.labelContainers[0].inserir_parametros_dinamicos(
-            1, 2, "STL flex region model file ", 40, "selecione o arquivo STL", True, "search", self.select_file))
+        self.labelContainers[0].inserir_parametro(0, 1, "number of flex regions:", 3, "5", True, "confirm", lambda: [self.labelContainers[0].inserir_parametros_dinamicos(
+            self.labelContainers[0].entry, 1, 2, "STL flex region model file ", 40, "selecione o arquivo STL", True, "search", self.select_file), self.labelContainers[4].inserir_parametros_dinamicos(
+            self.labelContainers[0].entry, 1, 3, "Horizontal number gap:", 5, "1", False, None, None), self.labelContainers[4].inserir_parametros_dinamicos(
+            self.labelContainers[0].entry, 1, 4, "Horizontal perc gap (%):", 5, "20", False, None, None)])
 
         ### Printer setup LabelFrame ###
         self.printer_setup = ttk.Labelframe(
@@ -72,6 +74,81 @@ class ParametersWindow:
             0, 3, "Y max Build volume (mm):", 5, "220", False, None, None)
         self.labelContainers[1].inserir_parametro(
             0, 4, "Z max Build volume (mm):", 5, "220", False, None, None)
+
+        ### Common printing parameters LabelFrame ###
+        self.printer_setup = ttk.Labelframe(
+            self.container_parameters, text=" Common Printing Parameters ")
+        self.printer_setup.pack(fill="x", padx=10, pady=10)
+
+        self.labelContainers.append(Label_Container(self.printer_setup, 18))
+
+        self.labelContainers[2].inserir_parametro(
+            0, 0, "Infill angle (°):", 5, "180", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 1, "Infill gap (mm):", 5, "0.5", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 2, "X offset (mm):", 5, "0", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 3, "Y offset (mm):", 5, "0", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 4, "Z offset (mm):", 5, "0", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 5, "External adjust (mm):", 5, "0.5", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 6, "Raster gap (mm):", 5, "0.5", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 7, "Perimeter number:", 5, "2", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 8, "Perimeter to perimeter gap (mm):", 5, "0.5", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 9, "Perimeter to infill gap (mm):", 5, "0.35", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 10, "Skirt distance (mm):", 5, "8", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 11, "Skirt number:", 5, "2", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 12, "Skirt gap (mm):", 5, "0.6", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 13, "Overlap (mm):", 5, "0.0", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 14, "Layer height (mm):", 5, "0.2", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 15, "Travel speed (mm/min):", 5, "12000", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 16, "Retraction (mm):", 5, "0.2", False, None, None)
+        self.labelContainers[2].inserir_parametro(
+            0, 17, "Best path:", 5, "True", False, None, None)
+
+        ### Non-flexible region parameters LabelFrame ###
+        self.printer_setup = ttk.Labelframe(
+            self.container_parameters, text=" Non-flexible Region Parameters ")
+        self.printer_setup.pack(fill="x", padx=10, pady=10)
+
+        self.labelContainers.append(Label_Container(self.printer_setup, 3))
+
+        self.labelContainers[3].inserir_parametro(
+            0, 0, "First layer flow (g/min):", 5, "0.9", False, None, None)
+        self.labelContainers[3].inserir_parametro(
+            0, 1, "Flow (g/min):", 5, "0.9", False, None, None)
+        self.labelContainers[3].inserir_parametro(
+            0, 2, "Speed (mm/min):", 5, "3600", False, None, None)
+
+        ### Flexible region parameters LabelFrame ###
+        self.printer_setup = ttk.Labelframe(
+            self.container_parameters, text=" Flexible Region Parameters ")
+        self.printer_setup.pack(fill="x", padx=10, pady=10)
+
+        self.labelContainers.append(Label_Container(self.printer_setup, 6))
+
+        self.labelContainers[4].inserir_parametro(
+            0, 0, "Flow (g/min):", 5, "0.6", False, None, None)
+        self.labelContainers[4].inserir_parametro(
+            0, 1, "Speed (mm/min):", 5, "3600", False, None, None)
+        self.labelContainers[4].inserir_parametro(
+            0, 2, "Horizontal gap:", 5, "True", False, None, None)
+        # os parametro 3 e 4 desta label foram inseridos na fç lambda do numero de flex regions definido na Labelframe Stl files
+        self.labelContainers[4].inserir_parametro(
+            0, 5, "Orientation gap:", 5, "True", False, None, None)
 
     def select_file(self):
         return
