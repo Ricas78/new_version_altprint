@@ -1,8 +1,15 @@
 import tkinter as tk  # biblioteca padrão de GUI do Python
 # widgets mais modernos (botões, frames, etc.)
-from tkinter import ttk
+from tkinter import ttk, messagebox, filedialog
 from Auxiliar_classes.label_container import Label_Container
 from Auxiliar_classes.sub_window import SubWindow
+import meshio
+from vispy.scene.visuals import Mesh  # Para criar o objeto 3D na tela
+from vispy.visuals.transforms import MatrixTransform
+import numpy as np  # arrays eficientes
+from vispy.scene.visuals import Line
+import sys
+
 
 X_MAX_DEFAULT = 220
 Y_MAX_DEFAULT = 220
@@ -41,6 +48,10 @@ class ParametersWindow(SubWindow):
         # Atualizações dinâmicas de tamanho ao redimensionar a tela
         self.container_parameters.bind("<Configure>", self.atualizar_scroll)
 
+        # atributos p/ métodos
+        self.modelo_stl_visual = None
+        self.regioes_flexiveis_visuais = None
+
 
 ######## -Criação das LabelsFrames para todos os parametros/arquivos de input do fatiador-##################
 
@@ -55,9 +66,9 @@ class ParametersWindow(SubWindow):
 
         # Inserindo os parâmetros de forma empilhada
         self.labelContainers[0].inserir_parametro(
-            0, 0, "STL model file:", 40, "selecione o arquivo STL", True, "search", self.select_file)
+            0, 0, "STL model file:", 40, "selecione o arquivo STL", True, "search", lambda: self.select_stl(False))
         self.labelContainers[0].inserir_parametro(0, 1, "number of flex regions:", 3, "5", True, "confirm", lambda: [self.labelContainers[0].inserir_parametros_dinamicos(
-            self.labelContainers[0].entry, 1, 2, "STL flex region model file ", 40, "selecione o arquivo STL", True, "search", self.select_file), self.labelContainers[4].inserir_parametros_dinamicos(
+            self.labelContainers[0].entry, 1, 2, "STL flex region model file ", 40, "selecione o arquivo STL", True, "search", lambda: self.select_stl(True)), self.labelContainers[4].inserir_parametros_dinamicos(
             self.labelContainers[0].entry, 1, 3, "Horizontal number gap ", 5, "1", False, None, None), self.labelContainers[4].inserir_parametros_dinamicos(
             self.labelContainers[0].entry, 1, 4, "Horizontal perc gap (%) ", 5, "20", False, None, None)])
 
@@ -162,6 +173,120 @@ class ParametersWindow(SubWindow):
         # Gerando a visualização da BED/build volume
         self.generate_build_volume(
             "left", X_MAX_DEFAULT, Y_MAX_DEFAULT, Z_MAX_DEFAULT)
+
+    def select_stl(self, is_flex_region: bool):
+        # 1. Abre a caixa de diálogo para selecionar APENAS arquivos STL
+        path = filedialog.askopenfilename(
+            title="Selecionar modelo STL",
+            filetypes=[("Modelos STL", "*.stl")]
+        )
+
+        # Se o usuário fechar a janela ou cancelar, interrompe o processo
+        if not path:
+            return
+
+        # try:
+        # 2. SOLUÇÃO: Usamos o meshio para ler o arquivo de forma segura e moderna!
+        # O meshio não sofre com o problema do NumPy.
+        mesh = meshio.read(path)
+
+        # 3. Extraímos os vértices e as faces da estrutura do meshio
+        vertices = mesh.points  # Coordenadas X, Y, Z dos pontos
+
+        # O meshio guarda as faces dentro de um objeto de células.
+        # Pegamos o primeiro grupo de células geométricas (que serão os triângulos do STL)
+        faces = mesh.cells_dict["triangle"]
+
+        if (not is_flex_region):
+
+            # 2. Limpeza de segurança: Se já existia um STL carregado antes, remove da cena
+            if self.modelo_stl_visual is not None:
+                self.modelo_stl_visual.parent = None
+                self.modelo_stl_visual = None
+            # 4. Cria o objeto visual 3D (Mesh) dentro da cena da sua mesa
+            stl_visual = Mesh(
+                vertices=vertices,
+                faces=faces,
+                # Azul translúcido (com 80% de opacidade)
+                color=(0.2, 0.6, 1.0, 0.6),
+                shading='flat',              # Ativa sombras nas facetas para dar relevo 3D
+                parent=self.vispy_view.scene  # <--- ENTRA NA MESMA CENA DA MESA!
+            )
+
+            self.modelo_stl_visual = stl_visual
+
+            # 5. MATEMÁTICA DE CENTRALIZAÇÃO (Continua exatamente igual)
+            x_min, x_max = np.min(vertices[:, 0]), np.max(vertices[:, 0])
+            y_min, y_max = np.min(vertices[:, 1]), np.max(vertices[:, 1])
+            z_min, z_max = np.min(vertices[:, 2]), np.max(vertices[:, 2])
+
+            centro_x = (x_min + x_max) / 2
+            centro_y = (y_min + y_max) / 2
+
+            self.offset_x = (X_MAX_DEFAULT / 2) - centro_x
+            self.offset_y = (Y_MAX_DEFAULT / 2) - centro_y
+            self.offset_z = 0 - z_min
+
+            # Se é a primeira vez que vai ser inserida a peça principal
+            if self.regioes_flexiveis_visuais is None:
+                self.regioes_flexiveis_visuais = []
+
+            else:
+                # Se re-carregar a peça principal, limpa as flexíveis antigas da tela
+                for regiao in self.regioes_flexiveis_visuais:
+                    regiao.parent = None
+                self.regioes_flexiveis_visuais.clear()
+
+        else:
+
+            # SE o usuário tentar carregar a flexível antes da principal, evita o erro:
+            if self.modelo_stl_visual is None:
+                messagebox.showwarning(
+                    "Aviso", "Carregue a peça principal primeiro para alinhar corretamente.")
+                return
+            # VISUALIZAÇÂO DE SOLIDO PARA ARESTA####################################
+            # 1. MATEMÁTICA DE ARESTAS: Transforma os triângulos em pares de linhas (Wireframe)
+            # Pegamos os índices dos vértices que formam as faces
+            # Para cada triângulo com vértices (A, B, C), criamos as linhas A->B, B->C, C->A
+            arestas = np.empty((faces.shape[0], 3, 2), dtype=np.int32)
+            arestas[:, 0, 0] = faces[:, 0]
+            arestas[:, 0, 1] = faces[:, 1]
+            arestas[:, 1, 0] = faces[:, 1]
+            arestas[:, 1, 1] = faces[:, 2]
+            arestas[:, 2, 0] = faces[:, 2]
+            arestas[:, 2, 1] = faces[:, 0]
+
+            # Achamos apenas os caminhos de índices únicos para não desenhar a mesma linha duas vezes
+            arestas_unicas = np.unique(
+                np.sort(arestas.reshape(-1, 2), axis=1), axis=0)
+
+            # Mapeia os índices de volta para as coordenadas X, Y, Z reais dos vértices (mapeia "arestas_unicas" que sao bidimensionais nos "vértices" que sao 3D)
+            linhas_coords = vertices[arestas_unicas]
+
+            # 2. Cria o objeto visual de LINHAS (Wireframe) em vez de uma malha sólida
+            stl_visual = Line(
+                pos=linhas_coords,
+                color=(1.0, 0.1, 0.1, 0.8),  # Vermelho bem vivo e visível
+                connect='segments',          # Diz ao VisPy para conectar em pares isolados
+                # Espessura da linha da grade (pode ajustar)
+                width=1.5,
+                parent=self.vispy_view.scene
+            )
+
+            ####################################
+
+            self.regioes_flexiveis_visuais.append(stl_visual)
+
+        # Aplica EXATAMENTE o mesmo vetor de transformação em ambas
+        stl_visual.transform = MatrixTransform()
+        stl_visual.transform.translate(
+            (self.offset_x, self.offset_y, self.offset_z))
+
+        # Atualiza a tela
+        self.vispyCanvas.update()
+        # except Exception as e:
+        #     messagebox.showerror("Erro ao carregar STL",
+        #                          f"Não foi possível ler o arquivo STL:\n{e}")
 
     def select_file(self):
         return
