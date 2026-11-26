@@ -109,7 +109,7 @@ class ParametersWindow(SubWindow):
             text_entry="0",
             flag_button=True,
             text_button="confirm",
-            command_function=lambda: [self.clean_flex_regions(),
+            command_function=lambda: [self.clean_stls(flex_region=True),
 
                                       self.labelContainers[0].inserir_parametros_dinamicos(
                 dict_frame_ref_entry=self.labelContainers[0].entry,
@@ -210,8 +210,8 @@ class ParametersWindow(SubWindow):
             text_label="Z max Build volume (mm):",
             width_entry=5,
             text_entry="220",
-            flag_button=False,
-            text_button=None,
+            flag_button=True,
+            text_button="Rebuild Build volume",
             command_function=None
         )
 
@@ -529,6 +529,10 @@ class ParametersWindow(SubWindow):
 
         if (not is_flex_region):
 
+            # Se re-carregar a peça principal, limpa as flexíveis antigas da tela e atualiza o texto dos respectivos entries
+            self.clean_stls(all_region=True)
+
+            # seleciona o arquivo do tipo stl na label_container "STL file" e no seu frame 0 onde está o widget do parametro de seleção de arquivo stl normal
             path = self.select_file(
                 typefile="stl", label_container_ref=0, frame_ref=0)
 
@@ -546,10 +550,6 @@ class ParametersWindow(SubWindow):
             # Pegamos o primeiro grupo de células geométricas (que serão os triângulos do STL)
             faces = mesh.cells_dict["triangle"]
 
-            # Limpeza de segurança: Se já existia um STL carregado antes, remove da cena
-            if self.modelo_stl_visual is not None:
-                self.modelo_stl_visual.parent = None
-                self.modelo_stl_visual = None
             # Cria o objeto visual 3D (Mesh) dentro da cena da sua mesa
             stl_visual = Mesh(
                 vertices=vertices,
@@ -573,15 +573,6 @@ class ParametersWindow(SubWindow):
             self.offset_x = (X_MAX_DEFAULT / 2) - centro_x
             self.offset_y = (Y_MAX_DEFAULT / 2) - centro_y
             self.offset_z = 0.0 - z_min
-
-            # Se re-carregar a peça principal, limpa as flexíveis antigas da tela e atualiza o texto dos respectivos entries de cada região flex
-            if self.regioes_flexiveis_visuais:
-
-                for i in self.regioes_flexiveis_visuais.keys():
-                    self.labelContainers[0].atualizar_texto_entry(
-                        frame_ref=2, new_text="selecione o arquivo STL", line=i)
-
-                self.clean_flex_regions()
 
         else:
 
@@ -694,14 +685,52 @@ class ParametersWindow(SubWindow):
 
         return path
 
-    def clean_flex_regions(self) -> None:
-        """Remove todos os wireframes das regiões flexíveis da cena 3D.
-         Ou seja, remove todos os objetos 3D das regiões flexiveis visualizados """
+    def clean_stls(self, flex_region: bool = False, all_region: bool = False) -> None:
+        """Remove todos os wireframes de todas as regiões ou apenas da região nao flexível ou de todas as regiões flexíveis da cena 3D.
+        """
+        # limpa os stls de todas as regiões de forma segura
+        if all_region:
 
-        for regiao_visual in self.regioes_flexiveis_visuais.values():
-            regiao_visual.parent = None
+            # limpa o stl da região não flexivel, verifica primeiro se tinha algum stl na região padrão antes
+            if self.modelo_stl_visual:
+                self.modelo_stl_visual.parent = None
+                self.modelo_stl_visual = None
 
-        self.regioes_flexiveis_visuais.clear()
+                self.labelContainers[0].atualizar_texto_entry(
+                    frame_ref=0, new_text="selecione o arquivo STL")
+
+            # limpa os stls das regiões flexíveis, verifica primeiro se tinha algum stl em alguma região flexível antes
+            if self.regioes_flexiveis_visuais:
+
+                for i in self.regioes_flexiveis_visuais.keys():
+                    self.labelContainers[0].atualizar_texto_entry(
+                        frame_ref=2, new_text="selecione o arquivo STL", line=i)
+
+                for regiao_visual in self.regioes_flexiveis_visuais.values():
+                    regiao_visual.parent = None
+
+                self.regioes_flexiveis_visuais.clear()
+
+            return
+
+        # limpa o stl da região não flexivel, verifica primeiro se tinha algum stl na região padrão antes
+        if not flex_region and self.modelo_stl_visual:
+            self.modelo_stl_visual.parent = None
+            self.modelo_stl_visual = None
+
+            self.labelContainers[0].atualizar_texto_entry(
+                frame_ref=0, new_text="selecione o arquivo STL")
+
+        # limpa os stls das regiões flexíveis, verifica primeiro se tinha algum stl em alguma região flexível antes
+        elif self.regioes_flexiveis_visuais:
+            for i in self.regioes_flexiveis_visuais.keys():
+                self.labelContainers[0].atualizar_texto_entry(
+                    frame_ref=2, new_text="selecione o arquivo STL", line=i)
+
+            for regiao_visual in self.regioes_flexiveis_visuais.values():
+                regiao_visual.parent = None
+
+            self.regioes_flexiveis_visuais.clear()
 
     # Evento essencial: Atualiza a área de rolagem toda vez que o tamanho do frame mudar
     def atualizar_scroll(self, event):
